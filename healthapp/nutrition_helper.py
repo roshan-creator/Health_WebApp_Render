@@ -102,37 +102,76 @@
 #     main()
 
 
+import os
+import gdown
 import requests
 from ultralytics import YOLO
 from django.conf import settings
 
-model = YOLO('yolov8n.pt')  
+# Google Drive File ID for yolov8n.pt
+FILE_ID = "1WXaYsW2Gffawv9m0avHmd7hrZG2nRHC1"
+MODEL_PATH = os.path.join(settings.BASE_DIR, "models", "yolov8n.pt")
+
+
+def download_model():
+    """Download yolov8n.pt from Google Drive if not found."""
+    if not os.path.exists(MODEL_PATH):
+        print("Downloading YOLOv8 model from Google Drive...")
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+
+        # Use gdown for reliable download
+        url = f"https://drive.google.com/uc?id={FILE_ID}"
+        gdown.download(url, MODEL_PATH, quiet=False)
+        print("Download complete.")
+
+
+def get_model():
+    """Load YOLO model only once."""
+    global model
+    if "model" not in globals():
+        if not os.path.exists(MODEL_PATH):
+            download_model()  # Download if missing
+        model = YOLO(MODEL_PATH)  
+    return model
+
 
 def detect_food(image_path):
+    """Detect food items in an image using YOLOv8."""
+    model = get_model()
     results = model(image_path)
-    detected_foods = []
+    detected_foods = set()
+
     for result in results:
         for obj in result.boxes:
             food_name = model.names[int(obj.cls)]
-            detected_foods.append(food_name)
-    return list(set(detected_foods))
+            detected_foods.add(food_name)
+
+    return list(detected_foods)
+
 
 def get_usda_nutrition(food_name, api_key):
-    search_url = f"https://api.nal.usda.gov/fdc/v1/foods/search"
-    params = {
-        "query": food_name,
-        "pageSize": 1,
-        "api_key": api_key
-    }
-    response = requests.get(search_url, params=params)
-    if response.status_code == 200:
+    """Fetch USDA nutrition details for the given food item."""
+    search_url = "https://api.nal.usda.gov/fdc/v1/foods/search"
+    params = {"query": food_name, "pageSize": 1, "api_key": api_key}
+
+    try:
+        response = requests.get(search_url, params=params)
+        response.raise_for_status()
         data = response.json()
+
         if data.get("foods"):
             fdc_id = data["foods"][0]["fdcId"]
             details_url = f"https://api.nal.usda.gov/fdc/v1/food/{fdc_id}"
             details_response = requests.get(details_url, params={"api_key": api_key})
-            if details_response.status_code == 200:
-                #print(details_response.json())
-                return details_response.json()
-    return {"error": "Nutrition data not found"}
- 
+            details_response.raise_for_status()
+            return details_response.json()
+        else:
+            return {"error": f"No nutrition data found for '{food_name}'"}
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
+
+
+# Ensure the model is available before running detection
+get_model()
