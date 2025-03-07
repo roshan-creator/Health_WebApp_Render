@@ -26,7 +26,7 @@ SECRET_KEY = '5_s&43)=k=zn)ch4gx(%zwbbj6zb$!ijbi8wk6em#spkk!yq$5'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1','localhost',"holistic-health-webapp.onrender.com"]
 
 
 # Application definition
@@ -129,3 +129,5 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path.joinpath(BASE_DIR,'media')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
